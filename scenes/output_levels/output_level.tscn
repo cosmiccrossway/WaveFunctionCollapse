@@ -1,0 +1,55 @@
+[gd_scene load_steps=5 format=3 uid="uid://bmq67ligia8ve"]
+
+[ext_resource type="Script" path="res://scripts/output_level.gd" id="1_qnxlc"]
+[ext_resource type="PackedScene" uid="uid://ctbgjl32l0vu" path="res://scenes/input_levels/input_level_1.tscn" id="2_8uu37"]
+[ext_resource type="TileSet" uid="uid://dgmw2yxxfli24" path="res://scenes/input_levels/input_level_1.tres" id="3_n6c3c"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="4_ak7ve"]
+
+[node name="OutputLevel" type="Node2D"]
+script = ExtResource("1_qnxlc")
+input_level = ExtResource("2_8uu37")
+rotate_dictionary = {
+Vector2i(0, 0): Vector2i(0, 2),
+Vector2i(0, 1): Vector2i(1, 2),
+Vector2i(0, 2): Vector2i(2, 2),
+Vector2i(0, 3): Vector2i(0, 5),
+Vector2i(0, 5): Vector2i(2, 5),
+Vector2i(1, 0): Vector2i(0, 1),
+Vector2i(1, 1): Vector2i(1, 1),
+Vector2i(1, 2): Vector2i(2, 1),
+Vector2i(1, 4): Vector2i(1, 4),
+Vector2i(2, 0): Vector2i(0, 0),
+Vector2i(2, 1): Vector2i(1, 0),
+Vector2i(2, 2): Vector2i(2, 0),
+Vector2i(2, 3): Vector2i(0, 3),
+Vector2i(2, 5): Vector2i(2, 3),
+Vector2i(3, 0): Vector2i(3, 0)
+}
+reflect_dictionary = {
+Vector2i(0, 0): Vector2i(2, 0),
+Vector2i(0, 1): Vector2i(2, 1),
+Vector2i(0, 2): Vector2i(2, 2),
+Vector2i(0, 3): Vector2i(2, 3),
+Vector2i(0, 5): Vector2i(2, 5),
+Vector2i(1, 0): Vector2i(1, 0),
+Vector2i(1, 1): Vector2i(1, 1),
+Vector2i(1, 2): Vector2i(1, 2),
+Vector2i(1, 4): Vector2i(1, 4),
+Vector2i(2, 0): Vector2i(0, 0),
+Vector2i(2, 1): Vector2i(0, 1),
+Vector2i(2, 2): Vector2i(0, 2),
+Vector2i(2, 3): Vector2i(0, 3),
+Vector2i(2, 5): Vector2i(0, 5),
+Vector2i(3, 0): Vector2i(3, 0)
+}
+
+[node name="TileMapLayers" type="Node" parent="."]
+
+[node name="Ground" type="TileMapLayer" parent="TileMapLayers"]
+tile_set = ExtResource("3_n6c3c")
+
+[node name="CharacterBody2D" type="CharacterBody2D" parent="."]
+position = Vector2(3797, 3760)
+script = ExtResource("4_ak7ve")
+
+[node name="Camera2D" type="Camera2D" parent="CharacterBody2D"]
