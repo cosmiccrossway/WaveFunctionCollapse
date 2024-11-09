@@ -31,7 +31,6 @@ public partial class Camera : Camera2D {
 			Zoom = Zoom.Lerp(zoomTo, _zoomSpeed);
 			await ToSignal(GetTree().CreateTimer(0.10), "timeout");
 			_zoomIn = false;
-			Console.WriteLine(Zoom);
 		}
 
 		if (_zoomOut) {
@@ -42,7 +41,6 @@ public partial class Camera : Camera2D {
 			Zoom = Zoom.Lerp(zoomTo, _zoomSpeed);
 			await ToSignal(GetTree().CreateTimer(0.10), "timeout");
 			_zoomOut = false;
-			Console.WriteLine(Zoom);
 		}
 	}
 }
