@@ -1,8 +1,11 @@
-[gd_scene load_steps=3 format=3 uid="uid://b114cp8ha1v26"]
+[gd_scene load_steps=4 format=3 uid="uid://b114cp8ha1v26"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_oumk7"]
-[ext_resource type="PackedScene" uid="uid://bmq67ligia8ve" path="res://scenes/output_levels/output_level.tscn" id="2_5gngv"]
+[ext_resource type="Script" path="res://scripts/Game.cs" id="1_7pqng"]
+[ext_resource type="PackedScene" uid="uid://c8kasiitcukwh" path="res://scenes/output_levels/output_level.tscn" id="2_5gngv"]
+[ext_resource type="PackedScene" uid="uid://dnixxq8iw6g4c" path="res://scenes/player.tscn" id="3_yoo1d"]
 
 [node name="Game" type="Node2D"]
-script = ExtResource("1_oumk7")
-output_level_scene = ExtResource("2_5gngv")
+script = ExtResource("1_7pqng")
+OutputLevelScene = ExtResource("2_5gngv")
+
+[node name="Player" parent="." instance=ExtResource("3_yoo1d")]

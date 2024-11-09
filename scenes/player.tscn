@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3 uid="uid://dnixxq8iw6g4c"]
+
+[ext_resource type="Script" path="res://scripts/Player.cs" id="1_70egh"]
+[ext_resource type="Script" path="res://scripts/Camera.cs" id="2_fmh87"]
+
+[node name="Player" type="CharacterBody2D"]
+position = Vector2(3797, 3760)
+script = ExtResource("1_70egh")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+script = ExtResource("2_fmh87")
