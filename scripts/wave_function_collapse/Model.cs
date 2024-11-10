@@ -5,76 +5,84 @@ using System;
 namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
 abstract class Model {
-    protected bool[][] wave;
+    private bool[][] _wave;
 
-    protected int[][][] propagator;
-    int[][][] compatible;
-    protected int[] observed;
+    protected int[][][] Propagator;
+    private int[][][] _compatible;
+    protected int[] Observed;
 
-    (int, int)[] stack;
-    int stacksize, observedSoFar;
+    private (int, int)[] _stack;
+    private int _stackSize, _observedSoFar;
 
-    protected int MX, MY, T, N;
-    protected bool periodic, ground;
+    protected readonly int Mx;
+    protected readonly int My;
+    protected int T;
+    protected readonly int N;
+    private readonly bool _periodic;
+    protected bool Ground;
 
-    protected double[] weights;
-    double[] weightLogWeights, distribution;
+    protected double[] Weights;
+    private double[] _weightLogWeights, _distribution;
 
-    protected int[] sumsOfOnes;
-    double sumOfWeights, sumOfWeightLogWeights, startingEntropy;
-    protected double[] sumsOfWeights, sumsOfWeightLogWeights, entropies;
+    private int[] _sumsOfOnes;
+    private double _sumOfWeights, _sumOfWeightLogWeights, _startingEntropy;
+    private double[] _sumsOfWeights;
+    private double[] _sumsOfWeightLogWeights;
+    private double[] _entropies;
 
     public enum Heuristic {
         Entropy,
-        MRV,
+        Mrv,
         Scanline
     };
 
-    Heuristic heuristic;
+    private readonly Heuristic _heuristic;
 
-    protected Model(int width, int height, int N, bool periodic, Heuristic heuristic) {
-        MX = width;
-        MY = height;
-        this.N = N;
-        this.periodic = periodic;
-        this.heuristic = heuristic;
+    protected Model(int width, int height, int n, bool periodic, Heuristic heuristic) {
+        Mx = width;
+        My = height;
+        this.N = n;
+        this._periodic = periodic;
+        this._heuristic = heuristic;
     }
 
     void Init() {
-        wave = new bool[MX * MY][];
-        compatible = new int[wave.Length][][];
-        for (int i = 0; i < wave.Length; i++) {
-            wave[i] = new bool[T];
-            compatible[i] = new int[T][];
-            for (int t = 0; t < T; t++) compatible[i][t] = new int[4];
+        _wave = new bool[Mx * My][];
+        _compatible = new int[_wave.Length][][];
+        for (int i = 0; i < _wave.Length; i++) {
+            _wave[i] = new bool[T];
+            _compatible[i] = new int[T][];
+            for (int t = 0; t < T; t++) _compatible[i][t] = new int[4];
         }
 
-        distribution = new double[T];
-        observed = new int[MX * MY];
+        _distribution = new double[T];
+        Observed = new int[Mx * My];
 
-        weightLogWeights = new double[T];
-        sumOfWeights = 0;
-        sumOfWeightLogWeights = 0;
+        _weightLogWeights = new double[T];
+        _sumOfWeights = 0;
+        _sumOfWeightLogWeights = 0;
 
         for (int t = 0; t < T; t++) {
-            weightLogWeights[t] = weights[t] * Math.Log(weights[t]);
-            sumOfWeights += weights[t];
-            sumOfWeightLogWeights += weightLogWeights[t];
+            _weightLogWeights[t] = Weights[t] * Math.Log(Weights[t]);
+            _sumOfWeights += Weights[t];
+            _sumOfWeightLogWeights += _weightLogWeights[t];
         }
 
-        startingEntropy = Math.Log(sumOfWeights) - sumOfWeightLogWeights / sumOfWeights;
+        _startingEntropy = Math.Log(_sumOfWeights) - _sumOfWeightLogWeights / _sumOfWeights;
 
-        sumsOfOnes = new int[MX * MY];
-        sumsOfWeights = new double[MX * MY];
-        sumsOfWeightLogWeights = new double[MX * MY];
-        entropies = new double[MX * MY];
+        _sumsOfOnes = new int[Mx * My];
+        _sumsOfWeights = new double[Mx * My];
+        _sumsOfWeightLogWeights = new double[Mx * My];
+        _entropies = new double[Mx * My];
 
-        stack = new (int, int)[wave.Length * T];
-        stacksize = 0;
+        _stack = new (int, int)[_wave.Length * T];
+        _stackSize = 0;
     }
 
     public bool Run(int seed, int limit) {
-        if (wave == null) Init();
+        if (_wave == null) Init();
+        
+        if (_wave == null) throw new Exception("Model Wave has not been initialized");
 
         Clear();
         Random random = new(seed);
@@ -85,12 +93,11 @@ abstract class Model {
                 Observe(node, random);
                 bool success = Propagate();
                 if (!success) return false;
-            }
-            else {
-                for (int i = 0; i < wave.Length; i++)
-                    for (int t = 0; t < T; t++)
-                        if (wave[i][t]) {
-                            observed[i] = t;
+            } else {
+                for (var i = 0; i < _wave.Length; i++)
+                    for (var t = 0; t < T; t++)
+                        if (_wave[i][t]) {
+                            Observed[i] = t;
                             break;
                         }
 
@@ -102,11 +109,11 @@ abstract class Model {
     }
 
     int NextUnobservedNode(Random random) {
-        if (heuristic == Heuristic.Scanline) {
-            for (int i = observedSoFar; i < wave.Length; i++) {
-                if (!periodic && (i % MX + N > MX || i / MX + N > MY)) continue;
-                if (sumsOfOnes[i] > 1) {
-                    observedSoFar = i + 1;
+        if (_heuristic == Heuristic.Scanline) {
+            for (int i = _observedSoFar; i < _wave.Length; i++) {
+                if (!_periodic && (i % Mx + N > Mx || i / Mx + N > My)) continue;
+                if (_sumsOfOnes[i] > 1) {
+                    _observedSoFar = i + 1;
                     return i;
                 }
             }
@@ -115,56 +122,57 @@ abstract class Model {
         }
 
         double min = 1E+4;
-        int argmin = -1;
-        for (int i = 0; i < wave.Length; i++) {
-            if (!periodic && (i % MX + N > MX || i / MX + N > MY)) continue;
-            int remainingValues = sumsOfOnes[i];
-            double entropy = heuristic == Heuristic.Entropy ? entropies[i] : remainingValues;
+        int argMin = -1;
+        for (int i = 0; i < _wave.Length; i++) {
+            if (!_periodic && (i % Mx + N > Mx || i / Mx + N > My)) continue;
+            int remainingValues = _sumsOfOnes[i];
+            double entropy = _heuristic == Heuristic.Entropy ? _entropies[i] : remainingValues;
             if (remainingValues > 1 && entropy <= min) {
                 double noise = 1E-6 * random.NextDouble();
                 if (entropy + noise < min) {
                     min = entropy + noise;
-                    argmin = i;
+                    argMin = i;
                 }
             }
         }
 
-        return argmin;
+        return argMin;
     }
 
     void Observe(int node, Random random) {
-        bool[] w = wave[node];
-        for (int t = 0; t < T; t++) distribution[t] = w[t] ? weights[t] : 0.0;
-        int r = distribution.Random(random.NextDouble());
-        for (int t = 0; t < T; t++)
+        var w = _wave[node];
+        for (var t = 0; t < T; t++) {
+            _distribution[t] = w[t] ? Weights[t] : 0.0;
+        }
+        var r = _distribution.Random(random.NextDouble());
+        for (var t = 0; t < T; t++)
             if (w[t] != (t == r))
                 Ban(node, t);
     }
 
     bool Propagate() {
-        while (stacksize > 0) {
-            (int i1, int t1) = stack[stacksize - 1];
-            stacksize--;
+        while (_stackSize > 0) {
+            (int i1, int t1) = _stack[_stackSize - 1];
+            _stackSize--;
 
-            int x1 = i1 % MX;
-            int y1 = i1 / MX;
+            int x1 = i1 % Mx;
+            int y1 = i1 / Mx;
 
             for (int d = 0; d < 4; d++) {
-                int x2 = x1 + dx[d];
-                int y2 = y1 + dy[d];
-                if (!periodic && (x2 < 0 || y2 < 0 || x2 + N > MX || y2 + N > MY)) continue;
+                int x2 = x1 + Dx[d];
+                int y2 = y1 + Dy[d];
+                if (!_periodic && (x2 < 0 || y2 < 0 || x2 + N > Mx || y2 + N > My)) continue;
 
-                if (x2 < 0) x2 += MX;
-                else if (x2 >= MX) x2 -= MX;
-                if (y2 < 0) y2 += MY;
-                else if (y2 >= MY) y2 -= MY;
+                if (x2 < 0) x2 += Mx;
+                else if (x2 >= Mx) x2 -= Mx;
+                if (y2 < 0) y2 += My;
+                else if (y2 >= My) y2 -= My;
 
-                int i2 = x2 + y2 * MX;
-                int[] p = propagator[d][t1];
-                int[][] compat = compatible[i2];
+                int i2 = x2 + y2 * Mx;
+                int[] p = Propagator[d][t1];
+                int[][] compat = _compatible[i2];
 
-                for (int l = 0; l < p.Length; l++) {
-                    int t2 = p[l];
+                foreach (var t2 in p) {
                     int[] comp = compat[t2];
 
                     comp[d]--;
@@ -173,45 +181,45 @@ abstract class Model {
             }
         }
 
-        return sumsOfOnes[0] > 0;
+        return _sumsOfOnes[0] > 0;
     }
 
     void Ban(int i, int t) {
-        wave[i][t] = false;
+        _wave[i][t] = false;
 
-        int[] comp = compatible[i][t];
+        int[] comp = _compatible[i][t];
         for (int d = 0; d < 4; d++) comp[d] = 0;
-        stack[stacksize] = (i, t);
-        stacksize++;
+        _stack[_stackSize] = (i, t);
+        _stackSize++;
 
-        sumsOfOnes[i] -= 1;
-        sumsOfWeights[i] -= weights[t];
-        sumsOfWeightLogWeights[i] -= weightLogWeights[t];
+        _sumsOfOnes[i] -= 1;
+        _sumsOfWeights[i] -= Weights[t];
+        _sumsOfWeightLogWeights[i] -= _weightLogWeights[t];
 
-        double sum = sumsOfWeights[i];
-        entropies[i] = Math.Log(sum) - sumsOfWeightLogWeights[i] / sum;
+        double sum = _sumsOfWeights[i];
+        _entropies[i] = Math.Log(sum) - _sumsOfWeightLogWeights[i] / sum;
     }
 
     void Clear() {
-        for (int i = 0; i < wave.Length; i++) {
+        for (int i = 0; i < _wave.Length; i++) {
             for (int t = 0; t < T; t++) {
-                wave[i][t] = true;
-                for (int d = 0; d < 4; d++) compatible[i][t][d] = propagator[opposite[d]][t].Length;
+                _wave[i][t] = true;
+                for (int d = 0; d < 4; d++) _compatible[i][t][d] = Propagator[Opposite[d]][t].Length;
             }
 
-            sumsOfOnes[i] = weights.Length;
-            sumsOfWeights[i] = sumOfWeights;
-            sumsOfWeightLogWeights[i] = sumOfWeightLogWeights;
-            entropies[i] = startingEntropy;
-            observed[i] = -1;
+            _sumsOfOnes[i] = Weights.Length;
+            _sumsOfWeights[i] = _sumOfWeights;
+            _sumsOfWeightLogWeights[i] = _sumOfWeightLogWeights;
+            _entropies[i] = _startingEntropy;
+            Observed[i] = -1;
         }
 
-        observedSoFar = 0;
+        _observedSoFar = 0;
 
-        if (ground) {
-            for (int x = 0; x < MX; x++) {
-                for (int t = 0; t < T - 1; t++) Ban(x + (MY - 1) * MX, t);
-                for (int y = 0; y < MY - 1; y++) Ban(x + y * MX, T - 1);
+        if (Ground) {
+            for (int x = 0; x < Mx; x++) {
+                for (int t = 0; t < T - 1; t++) Ban(x + (My - 1) * Mx, t);
+                for (int y = 0; y < My - 1; y++) Ban(x + y * Mx, T - 1);
             }
 
             Propagate();
@@ -220,7 +228,7 @@ abstract class Model {
 
     public abstract void Save();
 
-    protected static int[] dx = { -1, 0, 1, 0 };
-    protected static int[] dy = { 0, 1, 0, -1 };
-    static int[] opposite = { 2, 3, 0, 1 };
+    protected static readonly int[] Dx = { -1, 0, 1, 0 };
+    protected static readonly int[] Dy = { 0, 1, 0, -1 };
+    private static readonly int[] Opposite = { 2, 3, 0, 1 };
 }

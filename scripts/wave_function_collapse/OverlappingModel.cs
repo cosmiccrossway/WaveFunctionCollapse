@@ -6,148 +6,160 @@ using Godot;
 
 namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
-class OverlappingModel : Model {
-    List<byte[]> patterns;
-    List<Vector2I> colors;
+internal class OverlappingModel : Model {
+    private readonly List<byte[]> _patterns;
+    private readonly List<Vector2I> _colors;
+    
+    private readonly Dictionary<byte, byte> _rotateColors = new Dictionary<byte, byte>();
+    private readonly Dictionary<byte, byte> _reflectColors = new Dictionary<byte, byte>();
 
-    private TileMapLayer _outputGroundLayer;
+    private readonly TileMapLayer _outputGroundLayer;
 
-    public OverlappingModel(Node2D inputLevel, Node2D outputLevel, int N, int width, int height, bool periodicInput,
-        bool periodic,
-        int symmetry, bool ground, Heuristic heuristic,
+    public OverlappingModel(Node2D inputLevel, Node2D outputLevel, int n, int width, int height, bool periodicInput,
+        bool periodic, int symmetry, bool ground, Heuristic heuristic,
         Godot.Collections.Dictionary<Vector2I, Vector2I> rotateDictionary,
-        Godot.Collections.Dictionary<Vector2I, Vector2I> reflectDictionary) : base(width, height, N, periodic,
-        heuristic) {
-        var groundLayer = inputLevel.FindChild("TileMapLayers").FindChild("Ground") as TileMapLayer;
+        Godot.Collections.Dictionary<Vector2I, Vector2I> reflectDictionary)
+        : base(width, height, n, periodic, heuristic) {
+        
+        if (inputLevel.FindChild("TileMapLayers").FindChild("Ground") is not TileMapLayer groundLayer) {
+            throw new Exception("Ground layer not found");
+        }
         var dimensions = groundLayer.GetUsedRect();
-        var SX = dimensions.Size.X;
-        var SY = dimensions.Size.Y;
+        var sx = dimensions.Size.X;
+        var sy = dimensions.Size.Y;
 
         _outputGroundLayer = outputLevel.FindChild("TileMapLayers").FindChild("Ground") as TileMapLayer;
 
-        byte[] sample = new byte[SX * SY];
-        colors = new List<Vector2I>();
-        for (int y = 0; y < SY; y++)
-            for (int x = 0; x < SX; x++) {
+        byte[] sample = new byte[sx * sy];
+        _colors = new List<Vector2I>();
+        for (var y = 0; y < sy; y++) {
+            for (var x = 0; x < sx; x++) {
                 Vector2I color = groundLayer.GetCellAtlasCoords(new Vector2I(x, y));
-                var i = colors.FindIndex(c => c == color);
+                var i = _colors.FindIndex(c => c == color);
                 if (i == -1) {
-                    colors.Add(color);
-                    i = colors.Count - 1;
+                    _colors.Add(color);
+                    i = _colors.Count - 1;
                 }
 
-                sample[x + y * SX] = (byte)i;
+                sample[x + y * sx] = (byte)i;
             }
-
-        static byte[] pattern(Func<int, int, byte> f, int N) {
-            byte[] result = new byte[N * N];
-            for (int y = 0; y < N; y++)
-                for (int x = 0; x < N; x++)
-                    result[x + y * N] = f(x, y);
-            return result;
         }
 
-        static long hash(byte[] p, int C) {
-            long result = 0, power = 1;
-            for (int i = 0; i < p.Length; i++) {
-                result += p[p.Length - 1 - i] * power;
-                power *= C;
-            }
-
-            return result;
-        }
-
-        patterns = new();
+        _patterns = new List<byte[]>();
         Dictionary<long, int> patternIndices = new();
         List<double> weightList = new();
 
-        int C = colors.Count;
+        var colorsCount = _colors.Count;
 
-        var rotateColors = new Dictionary<byte, byte>();
-        var reflectColors = new Dictionary<byte, byte>();
-
-        for (int i = 0; i < colors.Count; i++) {
-            var atlasCoordsKey = colors[i];
-            for (int j = 0; j < colors.Count; j++) {
-                if (colors[j] == rotateDictionary[atlasCoordsKey]) {
-                    rotateColors.Add((byte)i, (byte)j);
+        for (var i = 0; i < _colors.Count; i++) {
+            var atlasCoordsKey = _colors[i];
+            for (int j = 0; j < _colors.Count; j++) {
+                if (_colors[j] == rotateDictionary[atlasCoordsKey]) {
+                    _rotateColors.Add((byte)i, (byte)j);
                 }
 
-                if (colors[j] == reflectDictionary[atlasCoordsKey]) {
-                    reflectColors.Add((byte)i, (byte)j);
+                if (_colors[j] == reflectDictionary[atlasCoordsKey]) {
+                    _reflectColors.Add((byte)i, (byte)j);
                 }
             }
         }
 
-        byte[] rotate(byte[] p, int N) => pattern((x, y) => rotateColors.GetValueOrDefault(p[N - 1 - y + x * N]), N);
-        byte[] reflect(byte[] p, int N) => pattern((x, y) => reflectColors.GetValueOrDefault(p[N - 1 - x + y * N]), N);
+        var xMax = periodicInput ? sx : sx - n + 1;
+        var yMax = periodicInput ? sy : sy - n + 1;
+        for (var y = 0; y < yMax; y++)
+            for (var x = 0; x < xMax; x++) {
+                var ps = new byte[8][];
 
-        int xmax = periodicInput ? SX : SX - N + 1;
-        int ymax = periodicInput ? SY : SY - N + 1;
-        for (int y = 0; y < ymax; y++)
-            for (int x = 0; x < xmax; x++) {
-                byte[][] ps = new byte[8][];
+                var x1 = x;
+                var y1 = y;
+                ps[0] = Pattern((dx, dy) => sample[(x1 + dx) % sx + (y1 + dy) % sy * sx], n);
+                ps[1] = Reflect(ps[0], n);
+                ps[2] = Rotate(ps[0], n);
+                ps[3] = Reflect(ps[2], n);
+                ps[4] = Rotate(ps[2], n);
+                ps[5] = Reflect(ps[4], n);
+                ps[6] = Rotate(ps[4], n);
+                ps[7] = Reflect(ps[6], n);
 
-                ps[0] = pattern((dx, dy) => sample[(x + dx) % SX + (y + dy) % SY * SX], N);
-                ps[1] = reflect(ps[0], N);
-                ps[2] = rotate(ps[0], N);
-                ps[3] = reflect(ps[2], N);
-                ps[4] = rotate(ps[2], N);
-                ps[5] = reflect(ps[4], N);
-                ps[6] = rotate(ps[4], N);
-                ps[7] = reflect(ps[6], N);
-
-                for (int k = 0; k < symmetry; k++) {
-                    byte[] p = ps[k];
-                    long h = hash(p, C);
-                    if (patternIndices.TryGetValue(h, out int index)) weightList[index] = weightList[index] + 1;
-                    else {
+                for (var k = 0; k < symmetry; k++) {
+                    var p = ps[k];
+                    var h = Hash(p, colorsCount);
+                    if (patternIndices.TryGetValue(h, out var index)) {
+                        weightList[index] += 1;
+                    } else {
                         patternIndices.Add(h, weightList.Count);
                         weightList.Add(1.0);
-                        patterns.Add(p);
+                        _patterns.Add(p);
                     }
                 }
             }
 
-        weights = weightList.ToArray();
-        T = weights.Length;
-        this.ground = ground;
+        Weights = weightList.ToArray();
+        T = Weights.Length;
+        this.Ground = ground;
 
-        static bool agrees(byte[] p1, byte[] p2, int dx, int dy, int N) {
-            int xmin = dx < 0 ? 0 : dx, xmax = dx < 0 ? dx + N : N, ymin = dy < 0 ? 0 : dy, ymax = dy < 0 ? dy + N : N;
-            for (int y = ymin; y < ymax; y++)
-                for (int x = xmin; x < xmax; x++)
-                    if (p1[x + N * y] != p2[x - dx + N * (y - dy)])
-                        return false;
-            return true;
-        }
-
-        ;
-
-        propagator = new int[4][][];
+        Propagator = new int[4][][];
         for (var d = 0; d < 4; d++) {
-            propagator[d] = new int[T][];
+            Propagator[d] = new int[T][];
             for (var t = 0; t < T; t++) {
                 List<int> list = new();
                 for (var t2 = 0; t2 < T; t2++)
-                    if (agrees(patterns[t], patterns[t2], dx[d], dy[d], N))
+                    if (Agrees(_patterns[t], _patterns[t2], Dx[d], Dy[d], n))
                         list.Add(t2);
-                propagator[d][t] = new int[list.Count];
-                for (var c = 0; c < list.Count; c++) propagator[d][t][c] = list[c];
+                Propagator[d][t] = new int[list.Count];
+                for (var c = 0; c < list.Count; c++) Propagator[d][t][c] = list[c];
             }
         }
     }
 
     public override void Save() {
-        if (observed[0] >= 0) {
-            for (var y = 0; y < MY; y++) {
-                var dy = y < MY - N + 1 ? 0 : N - 1;
-                for (var x = 0; x < MX; x++) {
-                    var dx = x < MX - N + 1 ? 0 : N - 1;
-                    var c = colors[patterns[observed[x - dx + (y - dy) * MX]][dx + dy * N]];
-                    _outputGroundLayer.SetCell(new Vector2I(x, y), _outputGroundLayer.TileSet.GetSourceId(0), c, 0);
+        if (Observed[0] >= 0) {
+            for (var y = 0; y < My; y++) {
+                var dy = y < My - N + 1 ? 0 : N - 1;
+                for (var x = 0; x < Mx; x++) {
+                    var dx = x < Mx - N + 1 ? 0 : N - 1;
+                    var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
+                    _outputGroundLayer.SetCell(new Vector2I(x, y), _outputGroundLayer.TileSet.GetSourceId(0), c);
                 }
             }
         }
+    }
+    
+    private static byte[] Pattern(Func<int, int, byte> f, int n) {
+        var result = new byte[n * n];
+        for (var y = 0; y < n; y++)
+            for (var x = 0; x < n; x++)
+                result[x + y * n] = f(x, y);
+        return result;
+    }
+
+    private static long Hash(byte[] p, int c) {
+        long result = 0, power = 1;
+        for (var i = 0; i < p.Length; i++) {
+            result += p[p.Length - 1 - i] * power;
+            power *= c;
+        }
+
+        return result;
+    }
+
+    private byte[] Rotate(byte[] p, int n) {
+        return Pattern((x, y) => _rotateColors.GetValueOrDefault(p[n - 1 - y + x * n]), n);
+    }
+
+    private byte[] Reflect(byte[] p, int n) {
+        return Pattern((x, y) => _reflectColors.GetValueOrDefault(p[n - 1 - x + y * n]), n);
+    }
+
+    private static bool Agrees(byte[] p1, byte[] p2, int dx, int dy, int n) {
+        var xMin = dx < 0 ? 0 : dx;
+        var xMax = dx < 0 ? dx + n : n;
+        var yMin = dy < 0 ? 0 : dy;
+        var yMax = dy < 0 ? dy + n : n;
+        for (var y = yMin; y < yMax; y++)
+            for (var x = xMin; x < xMax; x++)
+                if (p1[x + n * y] != p2[x - dx + n * (y - dy)])
+                    return false;
+        return true;
     }
 }
