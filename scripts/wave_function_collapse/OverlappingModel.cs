@@ -12,6 +12,7 @@ internal class OverlappingModel : Model {
     
     private readonly Dictionary<byte, byte> _rotateColors = new Dictionary<byte, byte>();
     private readonly Dictionary<byte, byte> _reflectColors = new Dictionary<byte, byte>();
+    private readonly Dictionary<Vector2I, byte> _presetColors = new Dictionary<Vector2I, byte>();
 
     private readonly TileMapLayer _outputGroundLayer;
 
@@ -29,6 +30,9 @@ internal class OverlappingModel : Model {
         var sy = dimensions.Size.Y;
 
         _outputGroundLayer = outputLevel.FindChild("TileMapLayers").FindChild("Ground") as TileMapLayer;
+        if (_outputGroundLayer == null) {
+            throw new Exception("Ground layer not found");
+        }
 
         byte[] sample = new byte[sx * sy];
         _colors = new List<Vector2I>();
@@ -42,6 +46,16 @@ internal class OverlappingModel : Model {
                 }
 
                 sample[x + y * sx] = (byte)i;
+            }
+        }
+
+        for (var y = 0; y < width; y++) {
+            for (var x = 0; x < sx; x++) {
+                var location = new Vector2I(x, y);
+                Vector2I color = _outputGroundLayer.GetCellAtlasCoords(location);
+                if (color != new Vector2I(-1, -1)) {
+                    _presetColors[location] = (byte)_colors.FindIndex(c => c == color);
+                }
             }
         }
 
@@ -112,14 +126,57 @@ internal class OverlappingModel : Model {
         }
     }
 
+    protected override void PreBan() {
+        foreach (var (x, y) in _presetColors.Keys) {
+            var color = _presetColors[new Vector2I(x, y)];
+            for (var x1 = x - N + 1; x1 <= x; x1++) {
+                if (x1 < 0 || x1 > Mx - N) continue;
+                for (var y1 = y - N + 1; y1 <= y; y1++) {
+                    if (y1 < 0 || y1 > My - N) continue;
+                    var nodePosition = x1 + y1 * Mx;
+                    
+                    var patternX = x - x1;
+                    var patternY = y - y1;
+                    var patternPosition = patternX + patternY * N;
+
+                    for (var patternReference = 0; patternReference < T; patternReference++) {
+                        if (_patterns[patternReference][patternPosition] != color) {
+                            if (Wave[nodePosition][patternReference]) {
+                                Ban(nodePosition, patternReference);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public override void Save() {
         if (Observed[0] >= 0) {
             for (var y = 0; y < My; y++) {
                 var dy = y < My - N + 1 ? 0 : N - 1;
                 for (var x = 0; x < Mx; x++) {
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
-                    var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
-                    _outputGroundLayer.SetCell(new Vector2I(x, y), _outputGroundLayer.TileSet.GetSourceId(0), c);
+
+                    var debug = false;
+                    if (!debug) {
+                        var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
+                        _outputGroundLayer.SetCell(new Vector2I(x, y), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                    } else {
+                        var x2 = x * 4;
+                        var y2 = y * 4;
+                        var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
+                        _outputGroundLayer.SetCell(new Vector2I(x2, y2), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                        
+                        c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][0]];
+                        _outputGroundLayer.SetCell(new Vector2I(x2 + 1, y2 + 1), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                        c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][1]];
+                        _outputGroundLayer.SetCell(new Vector2I(x2 + 2, y2 + 1), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                        c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][2]];
+                        _outputGroundLayer.SetCell(new Vector2I(x2 + 1, y2 + 2), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                        c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][3]];
+                        _outputGroundLayer.SetCell(new Vector2I(x2 + 2, y2 + 2), _outputGroundLayer.TileSet.GetSourceId(0), c);
+                    }
                 }
             }
         }
