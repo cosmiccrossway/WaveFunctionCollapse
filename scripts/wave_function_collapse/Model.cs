@@ -4,7 +4,7 @@ using System;
 
 namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
-internal abstract class Model {
+public abstract class Model {
     protected bool[][] Wave;
 
     protected int[][][] Propagator;

@@ -6,7 +6,11 @@ using WaveFunctionCollapse.scripts.wave_function_collapse;
 namespace WaveFunctionCollapse.scripts;
 
 public partial class OutputLevel : Node2D {
-	[UsedImplicitly] [Export] public PackedScene InputLevel { get; set; }
+	[UsedImplicitly] [Export] public PackedScene[] InputLevels { get; set; }
+	[UsedImplicitly] [Export] public PackedScene RotateMapping { get; set; }
+	[UsedImplicitly] [Export] public PackedScene ReflectMapping { get; set; }
+	[UsedImplicitly] [Export] public string PathToTileMapLayer { get; set; }
+	[UsedImplicitly] [Export] public TileMapLayer OutputTileMapLayer { get; set; }
 	[UsedImplicitly] [Export] public int N { get; set; } = 2;
 	[UsedImplicitly] [Export] public int Width { get; set; } = 64;
 	[UsedImplicitly] [Export] public int Height { get; set; } = 64;
@@ -15,31 +19,49 @@ public partial class OutputLevel : Node2D {
 	[UsedImplicitly] [Export] public int Symmetry { get; set; } = 8;
 	[UsedImplicitly] [Export] public bool Ground { get; set; }
 	[UsedImplicitly] [Export] public int Limit { get; set; }
-	[UsedImplicitly] [Export] public string HeuristicString { get; set; } = "Entropy";
-	[UsedImplicitly] [Export] public Godot.Collections.Dictionary<Vector2I, Vector2I> RotateDictionary { get; set; }
-	[UsedImplicitly] [Export] public Godot.Collections.Dictionary<Vector2I, Vector2I> ReflectDictionary { get; set; }
+	[UsedImplicitly] [Export] public Model.Heuristic Heuristic { get; set; } = Model.Heuristic.Entropy;
+	[UsedImplicitly] [Export] public bool ShowPatterns { get; set; }
 
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready() {
 		Random random = new();
-		var input = InputLevel.Instantiate() as Node2D;
-		var heuristic = HeuristicString == "Scanline"
-			? Model.Heuristic.Scanline
-			: (HeuristicString == "MRV" ? Model.Heuristic.Mrv : Model.Heuristic.Entropy);
-		var model = new OverlappingModel(input, this, N, Width, Height, PeriodicInput, Periodic, Symmetry, Ground,
-			heuristic, RotateDictionary, ReflectDictionary);
-		for (var i = 0; i < 10; i++) {
-			var seed = random.Next();
-			var success = model.Run(seed, Limit);
-			if (success) {
-				model.Save();
-				break;
-			} else {
+
+		var inputTileMapLayers = new TileMapLayer[InputLevels.Length];
+		for (int i = 0; i < InputLevels.Length; i++) {
+			inputTileMapLayers[i] = GetTileMapLayerFromPackedScene(InputLevels[i], PathToTileMapLayer);
+		}
+
+		var rotateMapping = GetTileMapLayerFromPackedScene(RotateMapping, PathToTileMapLayer);
+		var reflectMapping = GetTileMapLayerFromPackedScene(ReflectMapping, PathToTileMapLayer);
+		
+		var model = new OverlappingModel(inputTileMapLayers, rotateMapping, reflectMapping, OutputTileMapLayer, N, Width, Height, PeriodicInput, Periodic, Symmetry, Ground,
+			Heuristic);
+		if (!ShowPatterns) {
+			for (var i = 0; i < 10; i++) {
+				var seed = random.Next();
+				var success = model.Run(seed, Limit);
+				if (success) {
+					model.Save();
+					break;
+				}
+
 				Console.WriteLine($"Failed Attempt {i + 1}");
 			}
+		} else {
+			model.SavePatterns();
 		}
 	}
 
-	// Called every frame. 'delta' is the elapsed time since the previous frame.
-	public override void _Process(double delta) { }
+	private static TileMapLayer GetTileMapLayerFromPackedScene(PackedScene packedScene, string pathToTileMapLayer) {
+		if (packedScene == null) {
+			throw new ArgumentNullException(nameof(packedScene));
+		}
+		var scene = packedScene.Instantiate();
+		
+		if (scene?.GetNode(pathToTileMapLayer) is not TileMapLayer tileMapLayer) {
+			throw new Exception($"TileMapLayer not found for {scene?.GetName()} with path {pathToTileMapLayer}.");
+		}
+
+		return tileMapLayer;
+	}
 }

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=4 uid="uid://cv3w24vpo1a1d"]
+
+[ext_resource type="TileSet" uid="uid://dgmw2yxxfli24" path="res://scenes/input_levels/input_level_1.tres" id="1_no38u"]
+
+[node name="ReflectMapping" type="Node2D"]
+
+[node name="TileMapLayers" type="Node" parent="."]
+
+[node name="Ground" type="TileMapLayer" parent="TileMapLayers"]
+tile_map_data = PackedByteArray("AAAAAAAAAQAAAAAAAAABAAAAAQACAAAAAAAAAAIAAQAAAAEAAAABAAIAAQACAAEAAAAAAAQAAQAAAAIAAAABAAQAAQACAAIAAAAAAAYAAQAAAAMAAAABAAYAAQACAAMAAAAAAAgAAQAAAAUAAAABAAgAAQACAAUAAAADAAAAAQACAAAAAAAEAAAAAQAAAAAAAAADAAIAAQACAAEAAAAEAAIAAQAAAAEAAAADAAQAAQACAAIAAAAEAAQAAQAAAAIAAAADAAYAAQACAAMAAAAEAAYAAQAAAAMAAAADAAgAAQACAAUAAAAEAAgAAQAAAAUAAAA=")
+tile_set = ExtResource("1_no38u")
