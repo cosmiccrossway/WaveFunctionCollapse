@@ -21,8 +21,12 @@ public partial class Game : Node {
 	}
 
 	private void GenerateLevel() {
-		_outputLevel?.QueueFree();
-		_outputLevel = OutputLevelScene.Instantiate() as OutputLevel;
-		AddChild(_outputLevel);
+		var newOutputLevel = OutputLevelScene.Instantiate() as OutputLevel;
+		AddChild(newOutputLevel);
+		if (newOutputLevel != null)
+			newOutputLevel.LevelGenerated += () => {
+				_outputLevel?.QueueFree();
+				_outputLevel = newOutputLevel;
+			};
 	}
 }

@@ -185,7 +185,7 @@ internal class OverlappingModel : Model {
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
                     
                     var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
-                    _outputTileMapLayer.SetCell(new Vector2I(x, y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
+                    _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x, y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
                 }
             }
         }

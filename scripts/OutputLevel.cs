@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Godot;
 using JetBrains.Annotations;
 using WaveFunctionCollapse.scripts.wave_function_collapse;
@@ -6,6 +7,8 @@ using WaveFunctionCollapse.scripts.wave_function_collapse;
 namespace WaveFunctionCollapse.scripts;
 
 public partial class OutputLevel : Node2D {
+	[Signal]
+	public delegate void LevelGeneratedEventHandler();
 	[UsedImplicitly] [Export] public PackedScene[] InputLevels { get; set; }
 	[UsedImplicitly] [Export] public PackedScene RotateMapping { get; set; }
 	[UsedImplicitly] [Export] public PackedScene ReflectMapping { get; set; }
@@ -21,9 +24,16 @@ public partial class OutputLevel : Node2D {
 	[UsedImplicitly] [Export] public int Limit { get; set; }
 	[UsedImplicitly] [Export] public Model.Heuristic Heuristic { get; set; } = Model.Heuristic.Entropy;
 	[UsedImplicitly] [Export] public bool ShowPatterns { get; set; }
+	
+	private Thread generateThread;
 
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready() {
+		generateThread = new Thread(Generate);
+		generateThread.Start();
+	}
+
+	private void Generate() {
 		Random random = new();
 
 		var inputTileMapLayers = new TileMapLayer[InputLevels.Length];
@@ -50,6 +60,8 @@ public partial class OutputLevel : Node2D {
 		} else {
 			model.SavePatterns();
 		}
+
+		CallDeferred("emit_signal", SignalName.LevelGenerated);
 	}
 
 	private static TileMapLayer GetTileMapLayerFromPackedScene(PackedScene packedScene, string pathToTileMapLayer) {
