@@ -1,6 +1,7 @@
 // Copyright (C) 2016 Maxim Gumin, The MIT License (MIT)
 
 using System;
+using Godot;
 
 namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
@@ -287,7 +288,7 @@ public abstract class Model {
         }
     }
 
-    public abstract void Save();
+    public abstract void Save(Vector2I StartPosition);
 
     protected virtual void PreBan() {
         // Default do nothing

@@ -46,16 +46,6 @@ internal class OverlappingModel : Model {
             }
         }
 
-        for (var y = 0; y < height; y++) {
-            for (var x = 0; x < width; x++) {
-                var location = new Vector2I(x, y);
-                var color = _outputTileMapLayer.GetCellAtlasCoords(location);
-                if (color != new Vector2I(-1, -1)) {
-                    _presetColors[location] = (byte)_colors.FindIndex(c => c == color);
-                }
-            }
-        }
-
         _patterns = new List<byte[]>();
         Dictionary<long, int> patternIndices = new();
         List<double> weightList = new();
@@ -133,6 +123,19 @@ internal class OverlappingModel : Model {
         }
     }
 
+    public void RegisterPreSetTiles(Vector2I startPosition) {
+        for (var y = 0; y < My; y++) {
+            for (var x = 0; x < Mx; x++) {
+                var location = new Vector2I(x, y);
+                var offsetLocation = new Vector2I(x + startPosition.X, y + startPosition.Y);
+                var color = _outputTileMapLayer.GetCellAtlasCoords(offsetLocation);
+                if (color != new Vector2I(-1, -1)) {
+                    _presetColors[location] = (byte)_colors.FindIndex(c => c == color);
+                }
+            }
+        }
+    }
+
     private static Dictionary<Vector2I, Vector2I> BuildDictionaryFromMapping(TileMapLayer mapping) {
         var dictionary = new Dictionary<Vector2I, Vector2I>();
         var rect = mapping.GetUsedRect();
@@ -177,7 +180,7 @@ internal class OverlappingModel : Model {
         }
     }
 
-    public override void Save() {
+    public override void Save(Vector2I startPosition) {
         if (Observed[0] >= 0) {
             for (var y = 0; y < My; y++) {
                 var dy = y < My - N + 1 ? 0 : N - 1;
@@ -185,7 +188,7 @@ internal class OverlappingModel : Model {
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
                     
                     var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
-                    _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x, y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
+                    _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x + startPosition.X, y + startPosition.Y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
                 }
             }
         }

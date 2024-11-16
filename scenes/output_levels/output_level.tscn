@@ -1,5 +1,6 @@
-[gd_scene load_steps=8 format=4 uid="uid://c8kasiitcukwh"]
+[gd_scene load_steps=9 format=4 uid="uid://c8kasiitcukwh"]
 
+[ext_resource type="Script" path="res://scripts/WaveFunctionCollapseGenerator.cs" id="1_5bgjd"]
 [ext_resource type="Script" path="res://scripts/OutputLevel.cs" id="1_ybu7r"]
 [ext_resource type="PackedScene" uid="uid://ctbgjl32l0vu" path="res://scenes/input_levels/input_level_1.tscn" id="2_8uu37"]
 [ext_resource type="TileSet" uid="uid://dgmw2yxxfli24" path="res://scenes/input_levels/input_level_1.tres" id="3_n6c3c"]
@@ -8,14 +9,16 @@
 [ext_resource type="PackedScene" uid="uid://cv3w24vpo1a1d" path="res://scenes/input_levels/reflect_mapping.tscn" id="4_fpf5n"]
 [ext_resource type="PackedScene" uid="uid://d28lis31doedu" path="res://scenes/input_levels/input_level_3.tscn" id="4_p0dtv"]
 
-[node name="OutputLevel" type="Node2D" node_paths=PackedStringArray("OutputTileMapLayer")]
+[node name="OutputLevel" type="Node2D"]
 script = ExtResource("1_ybu7r")
+
+[node name="WaveFunctionCollapseGenerator" type="Node" parent="." node_paths=PackedStringArray("OutputTileMapLayer")]
+script = ExtResource("1_5bgjd")
 InputLevels = Array[PackedScene]([ExtResource("2_8uu37"), ExtResource("3_pmxkm"), ExtResource("4_p0dtv")])
 RotateMapping = ExtResource("3_vqqvt")
 ReflectMapping = ExtResource("4_fpf5n")
 PathToTileMapLayer = "TileMapLayers/Ground"
-OutputTileMapLayer = NodePath("TileMapLayers/Ground")
-Width = 128
+OutputTileMapLayer = NodePath("../TileMapLayers/Ground")
 PeriodicInput = false
 
 [node name="TileMapLayers" type="Node" parent="."]

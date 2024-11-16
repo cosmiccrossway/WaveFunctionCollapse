@@ -23,10 +23,11 @@ public partial class Game : Node {
 	private void GenerateLevel() {
 		var newOutputLevel = OutputLevelScene.Instantiate() as OutputLevel;
 		AddChild(newOutputLevel);
-		if (newOutputLevel != null)
+		if (newOutputLevel != null) {
 			newOutputLevel.LevelGenerated += () => {
 				_outputLevel?.QueueFree();
 				_outputLevel = newOutputLevel;
 			};
+		}
 	}
 }
