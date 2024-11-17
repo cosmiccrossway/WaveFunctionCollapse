@@ -124,6 +124,7 @@ internal class OverlappingModel : Model {
     }
 
     public void RegisterPreSetTiles(Vector2I startPosition) {
+        _presetColors.Clear();
         for (var y = 0; y < My; y++) {
             for (var x = 0; x < Mx; x++) {
                 var location = new Vector2I(x, y);
@@ -134,6 +135,11 @@ internal class OverlappingModel : Model {
                 }
             }
         }
+    }
+
+    public bool IsGenerated(Vector2I position) {
+        var atlasCoords = _outputTileMapLayer.GetCellAtlasCoords(position);
+        return atlasCoords != Vector2I.One * -1;
     }
 
     private static Dictionary<Vector2I, Vector2I> BuildDictionaryFromMapping(TileMapLayer mapping) {

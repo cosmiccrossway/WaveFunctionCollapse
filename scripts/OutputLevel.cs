@@ -1,3 +1,4 @@
+using System;
 using Godot;
 
 namespace WaveFunctionCollapse.scripts;
@@ -10,17 +11,9 @@ public partial class OutputLevel : Node2D {
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready() {
 		var wfcGenerator = GetNode<WaveFunctionCollapseGenerator>("WaveFunctionCollapseGenerator");
-		wfcGenerator.Generate();
+		wfcGenerator.Generate(new Vector2I(68, 69));
 		wfcGenerator.Generated += () => {
-			if (wfcGenerator.StartPosition.X == 0) {
-				wfcGenerator.StartPosition = new Vector2I(32, 0);
-				wfcGenerator.Generate();
-			} else if (wfcGenerator.StartPosition.X == 32) {
-				wfcGenerator.StartPosition = new Vector2I(64, 0);
-				wfcGenerator.Generate();
-			} else {
-				EmitSignal(SignalName.LevelGenerated);
-			}
+			EmitSignal(SignalName.LevelGenerated);
 		};
 	}
 }

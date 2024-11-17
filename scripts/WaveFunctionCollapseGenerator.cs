@@ -1,13 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Godot;
 using JetBrains.Annotations;
 using WaveFunctionCollapse.scripts.wave_function_collapse;
+using Environment = System.Environment;
 
 namespace WaveFunctionCollapse.scripts;
 
 [GlobalClass]
 public partial class WaveFunctionCollapseGenerator : Node {
+	[Signal]
+	public delegate void TileGeneratedEventHandler();
+	
 	[Signal]
 	public delegate void GeneratedEventHandler();
 	[UsedImplicitly] [Export] public PackedScene[] InputLevels { get; set; }
@@ -15,10 +20,12 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	[UsedImplicitly] [Export] public PackedScene ReflectMapping { get; set; }
 	[UsedImplicitly] [Export] public string PathToTileMapLayer { get; set; }
 	[UsedImplicitly] [Export] public TileMapLayer OutputTileMapLayer { get; set; }
+	[UsedImplicitly] [Export] public string Seed { get; set; }
 	[UsedImplicitly] [Export] public int N { get; set; } = 2;
-	[UsedImplicitly] [Export] public Vector2I StartPosition { get; set; } = Vector2I.Zero;
-	[UsedImplicitly] [Export] public int Width { get; set; } = 64;
-	[UsedImplicitly] [Export] public int Height { get; set; } = 64;
+	[UsedImplicitly] [Export] public int Width { get; set; } = 65;
+	[UsedImplicitly] [Export] public int Height { get; set; } = 65;
+	[UsedImplicitly] [Export] public int XSpacing { get; set; } = 64;
+	[UsedImplicitly] [Export] public int YSpacing { get; set; } = 64;
 	[UsedImplicitly] [Export] public bool PeriodicInput { get; set; } = true;
 	[UsedImplicitly] [Export] public bool Periodic { get; set; }
 	[UsedImplicitly] [Export] public int Symmetry { get; set; } = 8;
@@ -26,37 +33,116 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	[UsedImplicitly] [Export] public int Limit { get; set; }
 	[UsedImplicitly] [Export] public Model.Heuristic Heuristic { get; set; } = Model.Heuristic.Entropy;
 	[UsedImplicitly] [Export] public bool ShowPatterns { get; set; }
-	
-	private Thread _generateThread;
-	private OverlappingModel _model;
 
-	public void Generate() {
-		_generateThread = new Thread(ThreadedGenerate);
-		_generateThread.Start();
+	private OverlappingModel _model;
+	private FastNoiseLite _noise;
+	private readonly Queue<Vector2I> _toGenerate;
+	private bool _canGenerate = true;
+
+	public WaveFunctionCollapseGenerator() {
+		_toGenerate = new Queue<Vector2I>();
+		var generateThread = new Thread(GenerateLoop);
+		generateThread.Start();
+		
+		TileGenerated += () => _canGenerate = true;
 	}
 
-	private void ThreadedGenerate() {
-		Random random = new();
+	public override void _Ready() {
+		Seed ??= Environment.TickCount.ToString();
+		Console.WriteLine($"Seed: {Seed}, HashCode: {GetStableHashCode(Seed)}");
+		_noise = new FastNoiseLite();
+		_noise.Seed = GetStableHashCode(Seed);
+	}
+	
+	public void Generate(Vector2I? startPosition = null) {
+		var position = startPosition ?? Vector2I.Zero;
+		position = new Vector2I(position.X - position.X % XSpacing, position.Y - position.Y % YSpacing);
+		if (position.X % (XSpacing * 2) == 0 && position.Y % (YSpacing * 2) == 0) {
+			_toGenerate.Enqueue(position);
+		} else if (position.X % (XSpacing * 2) == 0) {
+			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y));
+			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y));
+			_toGenerate.Enqueue(position);
+		} else if (position.Y % (YSpacing * 2) == 0) {
+			_toGenerate.Enqueue(new Vector2I(position.X, position.Y - YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X, position.Y + YSpacing));
+			_toGenerate.Enqueue(position);
+		} else {
+			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y - YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y - YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y + YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y + YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y));
+			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y));
+			_toGenerate.Enqueue(new Vector2I(position.X, position.Y - YSpacing));
+			_toGenerate.Enqueue(new Vector2I(position.X, position.Y + YSpacing));
+			_toGenerate.Enqueue(position);
+		}
+	}
+
+	private void GenerateLoop() {
+		while (true) {
+			switch (_toGenerate.Count) {
+				case > 0 when _canGenerate: {
+					_canGenerate = false;
+					ThreadedGenerate(_toGenerate.Dequeue());
+					if (_toGenerate.Count == 0) {
+						CallDeferred("emit_signal", SignalName.Generated);
+					}
+
+					break;
+				}
+				case > 0:
+					Thread.Sleep(20);
+					break;
+				default:
+					Thread.Sleep(1000);
+					break;
+			}
+		}
+	}
+
+	private void ThreadedGenerate(Vector2I startPosition) {
 
 		_model ??= BuildModel();
 
-		_model.RegisterPreSetTiles(StartPosition);
-		if (!ShowPatterns) {
-			for (var i = 0; i < 10; i++) {
-				var seed = random.Next();
-				var success = _model.Run(seed, Limit);
-				if (success) {
-					_model.Save(StartPosition);
-					break;
-				}
+		// Checking at this position avoids the overlapping boundaries
+		if (!_model.IsGenerated(startPosition + Vector2I.One)) {
+			_model.RegisterPreSetTiles(startPosition);
+			if (!ShowPatterns) {
+				for (var i = 0; i < 10; i++) {
+					var seed = _noise.GetNoise2D(startPosition.X, startPosition.Y).GetHashCode();
+					var success = _model.Run(seed, Limit);
+					if (success) {
+						_model.Save(startPosition);
+						break;
+					}
 
-				Console.WriteLine($"Failed Attempt {i + 1}");
+					Console.WriteLine($"Failed Attempt {i + 1}");
+				}
+			} else {
+				_model.SavePatterns();
 			}
-		} else {
-			_model.SavePatterns();
 		}
 
-		CallDeferred("emit_signal", SignalName.Generated);
+		CallDeferred("emit_signal", SignalName.TileGenerated);
+
+	}
+
+	private static int GetStableHashCode(string str) {
+		unchecked {
+			var hash1 = 5381;
+			var hash2 = hash1;
+
+			for (var i = 0; i < str.Length && str[i] != '\0'; i += 2) {
+				hash1 = ((hash1 << 5) + hash1) ^ str[i];
+				if (i == str.Length - 1 || str[i + 1] == '\0')
+					break;
+				hash2 = ((hash2 << 5) + hash2) ^ str[i + 1];
+			}
+
+			return hash1 + (hash2 * 1566083941);
+		}
 	}
 
 	private OverlappingModel BuildModel() {

@@ -256,7 +256,7 @@ public abstract class Model {
         _entropies[nodeLocation] = Math.Log(sum) - _sumsOfWeightLogWeights[nodeLocation] / sum;
     }
 
-    void Clear() {
+    private void Clear() {
         for (int nodeLocation = 0; nodeLocation < Wave.Length; nodeLocation++) {
             for (int patternReference = 0; patternReference < T; patternReference++) {
                 Wave[nodeLocation][patternReference] = true;
