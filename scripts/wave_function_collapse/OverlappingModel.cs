@@ -8,11 +8,11 @@ namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
 internal class OverlappingModel : Model {
     private readonly List<byte[]> _patterns;
-    private readonly List<Vector2I> _colors;
+    private readonly List<Vector2I> _tiles;
     
-    private readonly Dictionary<byte, byte> _rotateColors = new Dictionary<byte, byte>();
-    private readonly Dictionary<byte, byte> _reflectColors = new Dictionary<byte, byte>();
-    private readonly Dictionary<Vector2I, byte> _presetColors = new Dictionary<Vector2I, byte>();
+    private readonly Dictionary<byte, byte> _rotateTiles = new Dictionary<byte, byte>();
+    private readonly Dictionary<byte, byte> _reflectTiles = new Dictionary<byte, byte>();
+    private readonly Dictionary<Vector2I, byte> _presetTiles = new Dictionary<Vector2I, byte>();
 
     private readonly TileMapLayer _outputTileMapLayer;
 
@@ -29,7 +29,7 @@ internal class OverlappingModel : Model {
 
         var sample = new byte[inputTileMapLayers.Length][];
         _outputTileMapLayer = outputTileMapLayer;
-        _colors = new List<Vector2I>();
+        _tiles = new List<Vector2I>();
         
         for (var inputReference = 0; inputReference < inputTileMapLayers.Length; inputReference++) {
             var inputTileMapLayer = inputTileMapLayers[inputReference];
@@ -40,11 +40,11 @@ internal class OverlappingModel : Model {
             sample[inputReference] = new byte[sx * sy];
             for (var y = 0; y < sy; y++) {
                 for (var x = 0; x < sx; x++) {
-                    Vector2I color = inputTileMapLayer.GetCellAtlasCoords(new Vector2I(x, y));
-                    var i = _colors.FindIndex(c => c == color);
+                    Vector2I tileAtlasCoords = inputTileMapLayer.GetCellAtlasCoords(new Vector2I(x, y));
+                    var i = _tiles.FindIndex(tile => tile == tileAtlasCoords);
                     if (i == -1) {
-                        _colors.Add(color);
-                        i = _colors.Count - 1;
+                        _tiles.Add(tileAtlasCoords);
+                        i = _tiles.Count - 1;
                     }
 
                     sample[inputReference][x + y * sx] = (byte)i;
@@ -56,19 +56,19 @@ internal class OverlappingModel : Model {
         Dictionary<long, int> patternIndices = new();
         List<double> weightList = new();
 
-        var colorsCount = _colors.Count;
+        var tilesCount = _tiles.Count;
         
         var rotateDictionary = BuildDictionaryFromMapping(rotateMapping);
         var reflectDictionary = BuildDictionaryFromMapping(reflectMapping);
-        for (var i = 0; i < _colors.Count; i++) {
-            var atlasCoordsKey = _colors[i];
-            for (int j = 0; j < _colors.Count; j++) {
-                if (rotateDictionary.ContainsKey(atlasCoordsKey) && _colors[j] == rotateDictionary[atlasCoordsKey]) {
-                    _rotateColors.Add((byte)i, (byte)j);
+        for (var i = 0; i < _tiles.Count; i++) {
+            var atlasCoordsKey = _tiles[i];
+            for (int j = 0; j < _tiles.Count; j++) {
+                if (rotateDictionary.ContainsKey(atlasCoordsKey) && _tiles[j] == rotateDictionary[atlasCoordsKey]) {
+                    _rotateTiles.Add((byte)i, (byte)j);
                 }
 
-                if (reflectDictionary.ContainsKey(atlasCoordsKey) && _colors[j] == reflectDictionary[atlasCoordsKey]) {
-                    _reflectColors.Add((byte)i, (byte)j);
+                if (reflectDictionary.ContainsKey(atlasCoordsKey) && _tiles[j] == reflectDictionary[atlasCoordsKey]) {
+                    _reflectTiles.Add((byte)i, (byte)j);
                 }
             }
         }
@@ -98,7 +98,7 @@ internal class OverlappingModel : Model {
 
                     for (var k = 0; k < symmetry; k++) {
                         var p = ps[k];
-                        var h = Hash(p, colorsCount);
+                        var h = Hash(p, tilesCount);
                         if (patternIndices.TryGetValue(h, out var index)) {
                             weightList[index] += 1;
                         } else {
@@ -130,14 +130,14 @@ internal class OverlappingModel : Model {
     }
 
     public void RegisterPreSetTiles(Vector2I startPosition) {
-        _presetColors.Clear();
+        _presetTiles.Clear();
         for (var y = 0; y < My; y++) {
             for (var x = 0; x < Mx; x++) {
                 var location = new Vector2I(x, y);
                 var offsetLocation = new Vector2I(x + startPosition.X, y + startPosition.Y);
-                var color = _outputTileMapLayer.GetCellAtlasCoords(offsetLocation);
-                if (color != new Vector2I(-1, -1)) {
-                    _presetColors[location] = (byte)_colors.FindIndex(c => c == color);
+                var tileAtlasCoords = _outputTileMapLayer.GetCellAtlasCoords(offsetLocation);
+                if (tileAtlasCoords != new Vector2I(-1, -1)) {
+                    _presetTiles[location] = (byte)_tiles.FindIndex(c => c == tileAtlasCoords);
                 }
             }
         }
@@ -163,8 +163,8 @@ internal class OverlappingModel : Model {
     }
 
     protected override void PreBan() {
-        foreach (var (x, y) in _presetColors.Keys) {
-            var color = _presetColors[new Vector2I(x, y)];
+        foreach (var (x, y) in _presetTiles.Keys) {
+            var tile = _presetTiles[new Vector2I(x, y)];
             for (var x1 = x - N + 1; x1 <= x; x1++) {
                 if (x1 < 0 || x1 > Mx - N) continue;
                 for (var y1 = y - N + 1; y1 <= y; y1++) {
@@ -176,7 +176,7 @@ internal class OverlappingModel : Model {
                     var patternPosition = patternX + patternY * N;
 
                     for (var patternReference = 0; patternReference < T; patternReference++) {
-                        if (_patterns[patternReference][patternPosition] != color) {
+                        if (_patterns[patternReference][patternPosition] != tile) {
                             if (Wave[nodePosition][patternReference]) {
                                 Ban(nodePosition, patternReference);
                             }
@@ -201,7 +201,7 @@ internal class OverlappingModel : Model {
                     }
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
                     
-                    var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
+                    var c = _tiles[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
                     _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x + startPosition.X, y + startPosition.Y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
                 }
             }
@@ -219,7 +219,7 @@ internal class OverlappingModel : Model {
             for (var i = 0; i < N * N; i++) {
                 var x1 = x + (i % N);
                 var y1 = y + (i / N);
-                _outputTileMapLayer.SetCell(new Vector2I(x1, y1), sourceId, _colors[pattern[i]]);
+                _outputTileMapLayer.SetCell(new Vector2I(x1, y1), sourceId, _tiles[pattern[i]]);
             }
 
             if (x < (N + 1) * 5) {
@@ -251,15 +251,15 @@ internal class OverlappingModel : Model {
 
     private byte[] Rotate(byte[] p, int n) {
         return Pattern((x, y) => {
-            var color = p[n - 1 - y + x * n];
-            return _rotateColors.GetValueOrDefault(color, color);
+            var tile = p[n - 1 - y + x * n];
+            return _rotateTiles.GetValueOrDefault(tile, tile);
         }, n);
     }
 
     private byte[] Reflect(byte[] p, int n) {
         return Pattern((x, y) => {
-            var color = p[n - 1 - x + y * n];
-            return _reflectColors.GetValueOrDefault(color, color);
+            var tile = p[n - 1 - x + y * n];
+            return _reflectTiles.GetValueOrDefault(tile, tile);
         }, n);
     }
 
