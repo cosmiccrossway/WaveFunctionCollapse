@@ -19,7 +19,6 @@ RotateMapping = ExtResource("3_vqqvt")
 ReflectMapping = ExtResource("4_fpf5n")
 PathToTileMapLayer = "TileMapLayers/Ground"
 OutputTileMapLayer = NodePath("../TileMapLayers/Ground")
-PeriodicInput = false
 
 [node name="TileMapLayers" type="Node" parent="."]
 

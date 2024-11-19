@@ -16,10 +16,16 @@ internal class OverlappingModel : Model {
 
     private readonly TileMapLayer _outputTileMapLayer;
 
+    private readonly int _xSpacing;
+    private readonly int _ySpacing;
+
     public OverlappingModel(TileMapLayer[] inputTileMapLayers, TileMapLayer rotateMapping, TileMapLayer reflectMapping, 
         TileMapLayer outputTileMapLayer, int n, int width, int height, bool periodicInput,
-        bool periodic, int symmetry, bool ground, Heuristic heuristic)
+        bool periodic, int symmetry, bool ground, Heuristic heuristic, int xSpacing, int ySpacing)
         : base(width, height, n, periodic, heuristic) {
+        
+        _xSpacing = xSpacing;
+        _ySpacing = ySpacing;
 
         var sample = new byte[inputTileMapLayers.Length][];
         _outputTileMapLayer = outputTileMapLayer;
@@ -137,11 +143,6 @@ internal class OverlappingModel : Model {
         }
     }
 
-    public bool IsGenerated(Vector2I position) {
-        var atlasCoords = _outputTileMapLayer.GetCellAtlasCoords(position);
-        return atlasCoords != Vector2I.One * -1;
-    }
-
     private static Dictionary<Vector2I, Vector2I> BuildDictionaryFromMapping(TileMapLayer mapping) {
         var dictionary = new Dictionary<Vector2I, Vector2I>();
         var rect = mapping.GetUsedRect();
@@ -191,6 +192,13 @@ internal class OverlappingModel : Model {
             for (var y = 0; y < My; y++) {
                 var dy = y < My - N + 1 ? 0 : N - 1;
                 for (var x = 0; x < Mx; x++) {
+                    if (y < N - 1 || y >= My - (N - 1) || x < N - 1 || x >= Mx - (N - 1)) {
+                        var xMod = MathUtil.Mod(startPosition.X, _xSpacing * 2) == 0;
+                        var yMod = MathUtil.Mod(startPosition.Y, _ySpacing * 2) == 0;
+                        if (!(xMod && yMod) && (xMod || yMod)) {
+                            continue;
+                        }
+                    }
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
                     
                     var c = _colors[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];

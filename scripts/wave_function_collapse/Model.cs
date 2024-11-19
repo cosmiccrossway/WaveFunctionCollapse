@@ -15,8 +15,8 @@ public abstract class Model {
     private (int, int)[] _stack;
     private int _stackSize, _observedSoFar;
 
-    protected readonly int Mx;
-    protected readonly int My;
+    public readonly int Mx;
+    public readonly int My;
     protected int T;
     protected readonly int N;
     private readonly bool _periodic;

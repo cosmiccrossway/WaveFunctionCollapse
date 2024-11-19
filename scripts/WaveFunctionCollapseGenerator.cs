@@ -5,16 +5,14 @@ using Godot;
 using JetBrains.Annotations;
 using WaveFunctionCollapse.scripts.wave_function_collapse;
 using Environment = System.Environment;
+using Vector2I = Godot.Vector2I;
 
 namespace WaveFunctionCollapse.scripts;
 
 [GlobalClass]
 public partial class WaveFunctionCollapseGenerator : Node {
 	[Signal]
-	public delegate void TileGeneratedEventHandler();
-	
-	[Signal]
-	public delegate void GeneratedEventHandler();
+	public delegate void ChunkGeneratedEventHandler(Vector2I chunkPosition);
 	[UsedImplicitly] [Export] public PackedScene[] InputLevels { get; set; }
 	[UsedImplicitly] [Export] public PackedScene RotateMapping { get; set; }
 	[UsedImplicitly] [Export] public PackedScene ReflectMapping { get; set; }
@@ -22,11 +20,11 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	[UsedImplicitly] [Export] public TileMapLayer OutputTileMapLayer { get; set; }
 	[UsedImplicitly] [Export] public string Seed { get; set; }
 	[UsedImplicitly] [Export] public int N { get; set; } = 2;
-	[UsedImplicitly] [Export] public int Width { get; set; } = 65;
-	[UsedImplicitly] [Export] public int Height { get; set; } = 65;
+	[UsedImplicitly] [Export] public int Width { get; set; } = 66;
+	[UsedImplicitly] [Export] public int Height { get; set; } = 66;
 	[UsedImplicitly] [Export] public int XSpacing { get; set; } = 64;
 	[UsedImplicitly] [Export] public int YSpacing { get; set; } = 64;
-	[UsedImplicitly] [Export] public bool PeriodicInput { get; set; } = true;
+	[UsedImplicitly] [Export] public bool PeriodicInput { get; set; }
 	[UsedImplicitly] [Export] public bool Periodic { get; set; }
 	[UsedImplicitly] [Export] public int Symmetry { get; set; } = 8;
 	[UsedImplicitly] [Export] public bool Ground { get; set; }
@@ -44,7 +42,10 @@ public partial class WaveFunctionCollapseGenerator : Node {
 		var generateThread = new Thread(GenerateLoop);
 		generateThread.Start();
 		
-		TileGenerated += () => _canGenerate = true;
+		ChunkGenerated += chunkPosition => {
+			_canGenerate = true;
+			Console.WriteLine($"Chunk {chunkPosition} Generated");
+		};
 	}
 
 	public override void _Ready() {
@@ -53,19 +54,56 @@ public partial class WaveFunctionCollapseGenerator : Node {
 		_noise = new FastNoiseLite();
 		_noise.Seed = GetStableHashCode(Seed);
 	}
+
+	public List<Vector2I> AttemptChunkGeneration(Vector2 position) {
+		var chunkPosition = WorldPositionToChunkPosition(position);
+		var chunksToGenerate = new List<Vector2I>(9);
+		for (var y = chunkPosition.Y - YSpacing; y <= chunkPosition.Y + YSpacing; y+=YSpacing) {
+			for (var x = chunkPosition.X - XSpacing; x <= chunkPosition.X + XSpacing; x+=XSpacing) {
+				var chunkToGenerate = new Vector2I(x, y);
+				chunksToGenerate.Add(chunkToGenerate);
+				if (!IsChunkGenerated(chunkToGenerate)) {
+					Generate(chunkToGenerate);
+				}
+			}
+		}
+		return chunksToGenerate;
+	}
+
+	private bool IsChunkGenerated(Vector2I chunkPosition) {
+		return _model != null && OutputTileMapLayer.GetCellAtlasCoords(new Vector2I(
+			chunkPosition.X + (_model.Mx - XSpacing),
+			chunkPosition.Y + (_model.My - YSpacing)
+		)) != Vector2I.One * -1;
+	}
+
+	public Vector2I WorldPositionToChunkPosition(Vector2 position) {
+		var tilePosition = WorldPositionToTilePosition(position);
+		return TilePositionToChunkPosition(tilePosition);
+	}
+
+	public Vector2I WorldPositionToTilePosition(Vector2 position) {
+		return OutputTileMapLayer.LocalToMap(position);
+	}
+
+	private Vector2I TilePositionToChunkPosition(Vector2I tilePosition) {
+		return new Vector2I(
+			tilePosition.X - MathUtil.Mod(tilePosition.X, XSpacing),
+			tilePosition.Y - MathUtil.Mod(tilePosition.Y, YSpacing));
+	}
 	
-	public void Generate(Vector2I? startPosition = null) {
+	private void Generate(Vector2I? startPosition = null) {
 		var position = startPosition ?? Vector2I.Zero;
-		position = new Vector2I(position.X - position.X % XSpacing, position.Y - position.Y % YSpacing);
-		if (position.X % (XSpacing * 2) == 0 && position.Y % (YSpacing * 2) == 0) {
+		position = TilePositionToChunkPosition(position);
+		if (MathUtil.Mod(position.X,XSpacing * 2) == 0 && MathUtil.Mod(position.Y,YSpacing * 2) == 0) {
 			_toGenerate.Enqueue(position);
 		} else if (position.X % (XSpacing * 2) == 0) {
-			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y));
-			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y));
-			_toGenerate.Enqueue(position);
-		} else if (position.Y % (YSpacing * 2) == 0) {
 			_toGenerate.Enqueue(new Vector2I(position.X, position.Y - YSpacing));
 			_toGenerate.Enqueue(new Vector2I(position.X, position.Y + YSpacing));
+			_toGenerate.Enqueue(position);
+		} else if (position.Y % (YSpacing * 2) == 0) {
+			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y));
+			_toGenerate.Enqueue(new Vector2I(position.X + XSpacing, position.Y));
 			_toGenerate.Enqueue(position);
 		} else {
 			_toGenerate.Enqueue(new Vector2I(position.X - XSpacing, position.Y - YSpacing));
@@ -84,10 +122,10 @@ public partial class WaveFunctionCollapseGenerator : Node {
 		while (true) {
 			switch (_toGenerate.Count) {
 				case > 0 when _canGenerate: {
-					_canGenerate = false;
-					ThreadedGenerate(_toGenerate.Dequeue());
-					if (_toGenerate.Count == 0) {
-						CallDeferred("emit_signal", SignalName.Generated);
+					var chunkPosition = _toGenerate.Dequeue();
+					if (!IsChunkGenerated(chunkPosition)) {
+						_canGenerate = false;
+						ThreadedGenerate(chunkPosition);
 					}
 
 					break;
@@ -107,26 +145,26 @@ public partial class WaveFunctionCollapseGenerator : Node {
 		_model ??= BuildModel();
 
 		// Checking at this position avoids the overlapping boundaries
-		if (!_model.IsGenerated(startPosition + Vector2I.One)) {
+		if (!IsChunkGenerated(startPosition)) {
 			_model.RegisterPreSetTiles(startPosition);
 			if (!ShowPatterns) {
+				var seedGenerator = new Random(_noise.GetNoise2D(startPosition.X, startPosition.Y).GetHashCode());
 				for (var i = 0; i < 10; i++) {
-					var seed = _noise.GetNoise2D(startPosition.X, startPosition.Y).GetHashCode();
+					var seed = seedGenerator.Next();
 					var success = _model.Run(seed, Limit);
 					if (success) {
 						_model.Save(startPosition);
 						break;
 					}
 
-					Console.WriteLine($"Failed Attempt {i + 1}");
+					Console.WriteLine($"Failed Attempt {i + 1}, Chunk: {startPosition}");
 				}
 			} else {
 				_model.SavePatterns();
 			}
 		}
 
-		CallDeferred("emit_signal", SignalName.TileGenerated);
-
+		CallDeferred("emit_signal", SignalName.ChunkGenerated, startPosition);
 	}
 
 	private static int GetStableHashCode(string str) {
@@ -155,7 +193,7 @@ public partial class WaveFunctionCollapseGenerator : Node {
 		var reflectMapping = GetTileMapLayerFromPackedScene(ReflectMapping, PathToTileMapLayer);
 		
 		var model = new OverlappingModel(inputTileMapLayers, rotateMapping, reflectMapping, OutputTileMapLayer, N,
-			Width, Height, PeriodicInput, Periodic, Symmetry, Ground, Heuristic);
+			Width, Height, PeriodicInput, Periodic, Symmetry, Ground, Heuristic, XSpacing, YSpacing);
 		return model;
 	}
 

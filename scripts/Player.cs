@@ -2,6 +2,7 @@ using Godot;
 
 namespace WaveFunctionCollapse.scripts;
 
+[GlobalClass]
 public partial class Player : CharacterBody2D {
 	private const float Speed = 600.0f;
 

@@ -1,11 +1,23 @@
-[gd_scene load_steps=4 format=3 uid="uid://b114cp8ha1v26"]
+[gd_scene load_steps=5 format=3 uid="uid://b114cp8ha1v26"]
 
 [ext_resource type="Script" path="res://scripts/Game.cs" id="1_7pqng"]
 [ext_resource type="PackedScene" uid="uid://c8kasiitcukwh" path="res://scenes/output_levels/output_level.tscn" id="2_5gngv"]
+[ext_resource type="Script" path="res://scripts/DebugScreen.cs" id="3_36sek"]
 [ext_resource type="PackedScene" uid="uid://dnixxq8iw6g4c" path="res://scenes/player.tscn" id="3_yoo1d"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_7pqng")
 OutputLevelScene = ExtResource("2_5gngv")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DebugScreen" type="Label" parent="CanvasLayer" node_paths=PackedStringArray("Player")]
+visible = false
+offset_left = 12.0
+offset_top = 9.0
+offset_right = 125.0
+offset_bottom = 32.0
+script = ExtResource("3_36sek")
+Player = NodePath("../../Player")
 
 [node name="Player" parent="." instance=ExtResource("3_yoo1d")]
