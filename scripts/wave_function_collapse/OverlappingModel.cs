@@ -8,7 +8,7 @@ namespace WaveFunctionCollapse.scripts.wave_function_collapse;
 
 internal class OverlappingModel : Model {
     private readonly List<byte[]> _patterns;
-    private readonly List<Vector2I> _tiles;
+    private readonly List<Tuple<int, Vector2I>> _tiles;
     
     private readonly Dictionary<byte, byte> _rotateTiles = new Dictionary<byte, byte>();
     private readonly Dictionary<byte, byte> _reflectTiles = new Dictionary<byte, byte>();
@@ -29,7 +29,7 @@ internal class OverlappingModel : Model {
 
         var sample = new byte[inputTileMapLayers.Length][];
         _outputTileMapLayer = outputTileMapLayer;
-        _tiles = new List<Vector2I>();
+        _tiles = new List<Tuple<int, Vector2I>>();
         
         for (var inputReference = 0; inputReference < inputTileMapLayers.Length; inputReference++) {
             var inputTileMapLayer = inputTileMapLayers[inputReference];
@@ -40,10 +40,13 @@ internal class OverlappingModel : Model {
             sample[inputReference] = new byte[sx * sy];
             for (var y = 0; y < sy; y++) {
                 for (var x = 0; x < sx; x++) {
-                    Vector2I tileAtlasCoords = inputTileMapLayer.GetCellAtlasCoords(new Vector2I(x, y));
-                    var i = _tiles.FindIndex(tile => tile == tileAtlasCoords);
+                    var coords = new Vector2I(x, y);
+                    var tileAtlasCoords = inputTileMapLayer.GetCellAtlasCoords(coords);
+                    var sourceId = inputTileMapLayer.GetCellSourceId(coords);
+                    var sourceIdAndAtlasCoords = new Tuple<int, Vector2I>(sourceId, tileAtlasCoords);
+                    var i = _tiles.FindIndex(tile => tile.Equals(sourceIdAndAtlasCoords));
                     if (i == -1) {
-                        _tiles.Add(tileAtlasCoords);
+                        _tiles.Add(sourceIdAndAtlasCoords);
                         i = _tiles.Count - 1;
                     }
 
@@ -63,11 +66,11 @@ internal class OverlappingModel : Model {
         for (var i = 0; i < _tiles.Count; i++) {
             var atlasCoordsKey = _tiles[i];
             for (int j = 0; j < _tiles.Count; j++) {
-                if (rotateDictionary.ContainsKey(atlasCoordsKey) && _tiles[j] == rotateDictionary[atlasCoordsKey]) {
+                if (rotateDictionary.ContainsKey(atlasCoordsKey) && _tiles[j].Equals(rotateDictionary[atlasCoordsKey])) {
                     _rotateTiles.Add((byte)i, (byte)j);
                 }
 
-                if (reflectDictionary.ContainsKey(atlasCoordsKey) && _tiles[j] == reflectDictionary[atlasCoordsKey]) {
+                if (reflectDictionary.ContainsKey(atlasCoordsKey) && _tiles[j].Equals(reflectDictionary[atlasCoordsKey])) {
                     _reflectTiles.Add((byte)i, (byte)j);
                 }
             }
@@ -136,25 +139,33 @@ internal class OverlappingModel : Model {
                 var location = new Vector2I(x, y);
                 var offsetLocation = new Vector2I(x + startPosition.X, y + startPosition.Y);
                 var tileAtlasCoords = _outputTileMapLayer.GetCellAtlasCoords(offsetLocation);
+                var sourceId = _outputTileMapLayer.GetCellSourceId(offsetLocation);
+                var sourceIdAndAtlasCoords = new Tuple<int, Vector2I>(sourceId, tileAtlasCoords);
                 if (tileAtlasCoords != new Vector2I(-1, -1)) {
-                    _presetTiles[location] = (byte)_tiles.FindIndex(c => c == tileAtlasCoords);
+                    _presetTiles[location] = (byte)_tiles.FindIndex(
+                        c => c.Equals(sourceIdAndAtlasCoords)
+                        );
                 }
             }
         }
     }
 
-    private static Dictionary<Vector2I, Vector2I> BuildDictionaryFromMapping(TileMapLayer mapping) {
-        var dictionary = new Dictionary<Vector2I, Vector2I>();
+    private static Dictionary<Tuple<int, Vector2I>, Tuple<int, Vector2I>> BuildDictionaryFromMapping(TileMapLayer mapping) {
+        var dictionary = new Dictionary<Tuple<int, Vector2I>, Tuple<int, Vector2I>>();
         var rect = mapping.GetUsedRect();
         for (var y = rect.Position.Y; y < rect.Position.Y + rect.Size.Y; y++) {
             for (var x = rect.Position.X; x < rect.Position.X + rect.Size.X; x++) {
                 var atlasCoordsForKey = mapping.GetCellAtlasCoords(new Vector2I(x, y));
+                var sourceIdForKey = mapping.GetCellSourceId(new Vector2I(x, y));
                 if (atlasCoordsForKey == new Vector2I(-1, -1)) continue;
                 
                 var atlasCoordsForValue = mapping.GetCellAtlasCoords(new Vector2I(x + 1, y));
+                var sourceIdForValue = mapping.GetCellSourceId(new Vector2I(x + 1, y));
                 if (atlasCoordsForValue == new Vector2I(-1, -1)) continue;
                     
-                dictionary.Add(atlasCoordsForKey, atlasCoordsForValue);
+                dictionary.Add(
+                    new Tuple<int, Vector2I>(sourceIdForKey, atlasCoordsForKey), 
+                    new Tuple<int, Vector2I>(sourceIdForValue, atlasCoordsForValue));
                 x++; //Increment x to skip past the value of the key value pair
             }
         }
@@ -202,7 +213,7 @@ internal class OverlappingModel : Model {
                     var dx = x < Mx - N + 1 ? 0 : N - 1;
                     
                     var c = _tiles[_patterns[Observed[x - dx + (y - dy) * Mx]][dx + dy * N]];
-                    _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x + startPosition.X, y + startPosition.Y), _outputTileMapLayer.TileSet.GetSourceId(0), c);
+                    _outputTileMapLayer.CallDeferred("set_cell", new Vector2I(x + startPosition.X, y + startPosition.Y), c.Item1, c.Item2);
                 }
             }
         }
@@ -212,14 +223,13 @@ internal class OverlappingModel : Model {
         var x = 0;
         var y = 0;
 
-        var sourceId = _outputTileMapLayer.TileSet.GetSourceId(0);
         for (var patternRef = 0; patternRef < T; patternRef++) {
             var pattern = _patterns[patternRef];
 
             for (var i = 0; i < N * N; i++) {
                 var x1 = x + (i % N);
                 var y1 = y + (i / N);
-                _outputTileMapLayer.SetCell(new Vector2I(x1, y1), sourceId, _tiles[pattern[i]]);
+                _outputTileMapLayer.SetCell(new Vector2I(x1, y1), _tiles[pattern[i]].Item1, _tiles[pattern[i]].Item2);
             }
 
             if (x < (N + 1) * 5) {
