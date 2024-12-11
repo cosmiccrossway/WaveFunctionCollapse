@@ -19,6 +19,7 @@ RotateMapping = ExtResource("3_vqqvt")
 ReflectMapping = ExtResource("4_fpf5n")
 PathToTileMapLayer = "TileMapLayers/Ground"
 OutputTileMapLayer = NodePath("../TileMapLayers/Ground")
+InfiniteGeneration = true
 
 [node name="TileMapLayers" type="Node" parent="."]
 

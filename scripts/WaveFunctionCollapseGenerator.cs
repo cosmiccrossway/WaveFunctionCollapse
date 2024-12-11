@@ -18,6 +18,7 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	[UsedImplicitly] [Export] public PackedScene ReflectMapping { get; set; }
 	[UsedImplicitly] [Export] public string PathToTileMapLayer { get; set; }
 	[UsedImplicitly] [Export] public TileMapLayer OutputTileMapLayer { get; set; }
+	[UsedImplicitly] [Export] public bool InfiniteGeneration { get; set; }
 	[UsedImplicitly] [Export] public string Seed { get; set; }
 	[UsedImplicitly] [Export] public int N { get; set; } = 2;
 	[UsedImplicitly] [Export] public int Width { get; set; } = 66;
@@ -36,6 +37,7 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	private FastNoiseLite _noise;
 	private readonly Queue<Vector2I> _toGenerate;
 	private bool _canGenerate = true;
+	private bool _hasBeenGenerated;
 
 	public WaveFunctionCollapseGenerator() {
 		_toGenerate = new Queue<Vector2I>();
@@ -58,15 +60,24 @@ public partial class WaveFunctionCollapseGenerator : Node {
 	public List<Vector2I> AttemptChunkGeneration(Vector2 position) {
 		var chunkPosition = WorldPositionToChunkPosition(position);
 		var chunksToGenerate = new List<Vector2I>(9);
-		for (var y = chunkPosition.Y - YSpacing; y <= chunkPosition.Y + YSpacing; y+=YSpacing) {
-			for (var x = chunkPosition.X - XSpacing; x <= chunkPosition.X + XSpacing; x+=XSpacing) {
-				var chunkToGenerate = new Vector2I(x, y);
-				chunksToGenerate.Add(chunkToGenerate);
-				if (!IsChunkGenerated(chunkToGenerate)) {
-					Generate(chunkToGenerate);
+		if (InfiniteGeneration) {
+			for (var y = chunkPosition.Y - YSpacing; y <= chunkPosition.Y + YSpacing; y += YSpacing) {
+				for (var x = chunkPosition.X - XSpacing; x <= chunkPosition.X + XSpacing; x += XSpacing) {
+					var chunkToGenerate = new Vector2I(x, y);
+					chunksToGenerate.Add(chunkToGenerate);
+					if (!IsChunkGenerated(chunkToGenerate)) {
+						Generate(chunkToGenerate);
+					}
 				}
 			}
+		} else if (!_hasBeenGenerated) {
+			_hasBeenGenerated = true;
+			chunksToGenerate.Add(chunkPosition);
+			if (!IsChunkGenerated(chunkPosition)) {
+				Generate(chunkPosition);
+			}
 		}
+
 		return chunksToGenerate;
 	}
 

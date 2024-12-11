@@ -1,4 +1,3 @@
-using System;
 using Godot;
 
 namespace WaveFunctionCollapse.scripts;
@@ -17,7 +16,8 @@ public partial class OutputLevel : Node2D {
 	}
 
 	public void AttemptChunkGeneration(Vector2 position) {
-		var chunksToGenerate = _wfcGenerator.AttemptChunkGeneration(position);
+		var positionForGeneration = _wfcGenerator.InfiniteGeneration ? position : Vector2.Zero;
+		var chunksToGenerate = _wfcGenerator.AttemptChunkGeneration(positionForGeneration);
 		if (_firstAttemptedChunkGeneration) {
 			_firstAttemptedChunkGeneration = false;
 			
